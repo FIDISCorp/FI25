@@ -17,17 +17,17 @@ contract Owned {
     }
 
     modifier onlyOwner() {
-        require(_owners[msg.sender], "Owned: caller is not an owner");
+        require(_owners[msg.sender], "Owned Error: Caller is not an owner.");
         _;
     }
 
     modifier whenNotPaused() {
-        require(!paused, "Pausable: Contract is paused");
+        require(!paused, "Pausable Error: Contract is paused.");
         _;
     }
 
     modifier whenPaused() {
-        require(paused, "Pausable: Contract is not paused");
+        require(paused, "Pausable Error: Contract is not paused.");
         _;
     }
 }
@@ -45,14 +45,10 @@ contract Multisignature is Owned {
     bool public _multisigApprovalGiven = false;
     bool public _multisigEnabled = false;
 
-    function requireMultisigVote(string memory topic) internal returns (bool) {
+    function multisigVoteApproved(string memory topic) internal returns (bool) {
         if (!_multisigEnabled) return true;
         if (_amountOwners == 1) return true;
-        if (
-            _multisigApprovalGiven &&
-            (keccak256(abi.encodePacked((topic))) ==
-                keccak256(abi.encodePacked((_topic)))) //Check that topic variable hash equals _topic variable hash
-        ) {
+        if (_multisigApprovalGiven && (keccak256(abi.encodePacked(_topic)) == keccak256(abi.encodePacked(topic)))) {
             resetVoting();
             return true;
         }
@@ -65,10 +61,10 @@ contract Multisignature is Owned {
     }
 
     function disableMultisig() public onlyOwner {
-        //Check to make sure that multisignature vote has been cast in favor of disabling multisig
+        //Check multisignature vote eligibility
         require(
-            requireMultisigVote("DISABLE_MULTISIG"),
-            "MultiSig Error: Multisignature vote has not been passed"
+            multisigVoteApproved("DISABLE_MULTISIG"),
+            "MultiSig Error: Multisignature requirements have not been met."
         );
 
         //Set _multisigEnabled to true
@@ -100,19 +96,18 @@ contract Multisignature is Owned {
     function vote() public onlyOwner {
         //Check to make sure that there are sufficient voters to initiate a vote
         require(
-            _amountOwners > 1 && _amountOwners <= 3,
-            "Owned: voting requires > 1 and <=3 owners"
+            (_amountOwners > 1) && (_amountOwners <= 3),
+            "Multisig Error: Voting requires > 1 and <=3 owners."
         );
         require(
-            (keccak256(abi.encodePacked((_topic))) !=
-                keccak256(abi.encodePacked(("")))),
-            "Owned: must set topic prior voting"
+            keccak256(abi.encodePacked(_topic)) != keccak256(abi.encodePacked("")),
+            "Multisig Error: Must set topic prior voting."
         );
 
         //Check to make sure that voter has not already voted
         require(
             !_haveVoted[msg.sender],
-            "Owned Error: Contract owner account has already voted"
+            "Multisig Error: You have already voted."
         );
 
         //Mark voter as voted
@@ -133,17 +128,14 @@ contract Multisignature is Owned {
     function setTopic(string memory topic) public onlyOwner {
         //Cannot set topic 'ADD_NEW_OWNER' once there are three owners
         require(
-            keccak256(abi.encodePacked((topic))) !=
-                keccak256(abi.encodePacked(("ADD_NEW_OWNER"))) ||
-                _amountOwners != 3,
-            "Multisign: Cannot call this topic with >= 3 owners."
+            (keccak256(abi.encodePacked(topic)) != keccak256(abi.encodePacked("ADD_NEW_OWNER"))) || (_amountOwners != 3),
+            "Multisig Error: Cannot call ADD_NEW_OWNER topic with >= 3 owners."
         );
 
         //Check to make sure that _topic is unset
         require(
-            keccak256(abi.encodePacked((_topic))) ==
-                keccak256(abi.encodePacked((""))),
-            "Multisign Error: Topic cannot be changed during a pending vote."
+            keccak256(abi.encodePacked(_topic)) == keccak256(abi.encodePacked("")),
+            "Multisig Error: Topic cannot be changed during a pending vote."
         );
 
         //Set interal _topic variable
@@ -166,23 +158,26 @@ contract OwnedExtended is Multisignature {
     function addNewOwner(address newOwner) public onlyOwner {
         //Checking multisignature vote eligibility
         require(
-            requireMultisigVote("ADD_NEW_OWNER"),
-            "Multisig Error: You do not meet the multisignature requirements"
+            multisigVoteApproved("ADD_NEW_OWNER"),
+            "Multisig Error: Multisignature requirements have not been met."
         );
 
         //Checking to ensure that account being added is not a zero address
         require(
             newOwner != address(0),
-            "Owned Error: Owner cannot be a zero address"
+            "Owned Error: Owner cannot be a zero address."
         );
 
         //Checking to ensure that account being added is not already an owner
-        require(!_owners[newOwner], "Owned Error: Account is already an owner");
+        require(
+            !_owners[newOwner],
+            "Owned Error: Account is already an owner."
+        );
 
         //Checking to ensure that total account owners are less than three
         require(
             _amountOwners < 3,
-            "Owned Error: Amount of owners already three. Contract cannot have more than three owners."
+            "Owned Error: Contract cannot have more than three owners."
         );
 
         //Set account ownership to true
@@ -198,26 +193,26 @@ contract OwnedExtended is Multisignature {
     function removeOwner(address ownerAccount) public onlyOwner {
         //Checking multisignature vote eligibility
         require(
-            requireMultisigVote("REMOVE_OWNER"),
-            "Multisig Error: You do not meet the multisignature requirements"
+            multisigVoteApproved("REMOVE_OWNER"),
+            "Multisig Error: Multisignature requirements have not been met."
         );
 
         //Checking to ensure that account being removed is an owner
         require(
 	    _owners[ownerAccount], 
-	    "Remove Owner Error: Account is not owner"
+	    "Owned Error: Account is not owner."
 	);
 
         //Checking to ensure that account being removed isn't the sender
         require(
             ownerAccount != msg.sender,
-            "Remove Owner Error: Owner cannot remove himself"
+            "Owned Error: Owner cannot remove himself."
         );
 
         //Checking to ensure that amount of owners is greater than one
         require(
             _amountOwners > 1,
-            "Remove Error: Amount of owners must be greater than one"
+            "Owned Error: Amount of owners must be greater than one."
         );
 
         //Set account ownership to false
@@ -237,8 +232,8 @@ contract Pausable is OwnedExtended {
 
     function pause() public onlyOwner whenNotPaused {
         require(
-            requireMultisigVote("PAUSE"),
-            "Multisig Error: Multisig requirements have not been met"
+            multisigVoteApproved("PAUSE"),
+            "Multisig Error: Multisignature requirements have not been met."
         );
         paused = true;
         emit PausedEvt(msg.sender);
@@ -246,8 +241,8 @@ contract Pausable is OwnedExtended {
 
     function unpause() public onlyOwner whenPaused {
         require(
-            requireMultisigVote("UNPAUSE"),
-            "Multisig Error: Multisig requirements have not been met"
+            multisigVoteApproved("UNPAUSE"),
+            "Multisig Error: Multisignature requirements have not been met."
         );
         paused = false;
         emit UnpausedEvt(msg.sender);
@@ -323,36 +318,28 @@ contract FI25 is Pausable, IERC20 {
         return _txFeeBP;
     }
 
-    function changeTransferFeeRate(uint256 amount)
-        public
-        whenNotPaused
-        onlyOwner
-    {
+    function changeTransferFeeRate(uint256 amount) public whenNotPaused onlyOwner {
         //Check for multisig vote eligibility
         require(
-            requireMultisigVote("CHANGE_TX_FEE_RATE"),
-            "Multisig Error: Multisignature requirements are not met."
+            multisigVoteApproved("CHANGE_TX_FEE_RATE"),
+            "Multisig Error: Multisignature requirements have not been met."
         );
 
         //Check to ensure that submitted amount is between 1 and 9999.  Minimum fee is 0.01%.  Maximum fee is 99.99%
         require(
-            amount >= 1 && amount <= 9999,
-            "Tx Fee Error: Submitted value out of bounds.  Value must be greater than or equal to 1 and less than or equal to 9999."
+            (amount >= 1) && (amount <= 9999),
+            "Tx Fee Error: Submitted value out of bounds.  Value must be >= 1 and <= 9999."
         );
 
         //Set transfer fee
         _txFeeBP = amount;
     }
 
-    function increaseTokenSupply(address account, uint256 amount)
-        public
-        whenNotPaused
-        onlyOwner
-    {
+    function increaseTokenSupply(address account, uint256 amount) public whenNotPaused onlyOwner {
         //Check for multisig vote eligibility
         require(
-            requireMultisigVote("INCREASE_TOKEN_SUPPLY"),
-            "Multisig Error: Multisig requirements have not been met."
+            multisigVoteApproved("INCREASE_TOKEN_SUPPLY"),
+            "Multisig Error: Multisignature requirements have not been met."
         );
 
         //Add tokens to total supply
@@ -365,15 +352,11 @@ contract FI25 is Pausable, IERC20 {
         emit Transfer(address(0), account, amount);
     }
 
-    function reduceTokenSupply(address account, uint256 amount)
-        public
-        whenNotPaused
-        onlyOwner
-    {
+    function reduceTokenSupply(address account, uint256 amount) public whenNotPaused onlyOwner {
         //Check for multisig vote eligibility
         require(
-            requireMultisigVote("REDUCE_TOKEN_SUPPLY"),
-            "Multisig Error: Multisig requirements have not been met."
+            multisigVoteApproved("REDUCE_TOKEN_SUPPLY"),
+            "Multisig Error: Multisignature requirements have not been met."
         );
 
         //Checking to make sure that submitted address isn't the zero address
@@ -385,7 +368,7 @@ contract FI25 is Pausable, IERC20 {
 
         //Checking to make sure that submitted address is an owners address and the message sender
         require(
-            _owners[account] && (account == msg.sender),
+            (_owners[account]) && (account == msg.sender),
             "Reduce Token Supply Error: Tokens may only be destroyed from a contract owner's own account."
         );
 
@@ -406,17 +389,13 @@ contract FI25 is Pausable, IERC20 {
         emit ReduceTokenSupply(account, amount);
     }
 
-    function _transfer(
-        address sender,
-        address recipient,
-        uint256 amount
-    ) private {
+    function _transfer(address sender, address recipient, uint256 amount) private {
         uint256 senderBalance = _balances[sender];
 
         //Check to ensure that account has enough tokens to transfer
         require(
             senderBalance >= amount,
-            "Transfer Error: Transfer amount exceeds balance"
+            "Transfer Error: Transfer amount exceeds balance."
         );
 
         //Check to ensure that sender is not the zero address
@@ -424,13 +403,13 @@ contract FI25 is Pausable, IERC20 {
         //Check to ensure that recipient is not the contract address
         require(
             (sender != address(0)) && (recipient != address(0)) && (recipient != address(this)),
-            "Transfer Error: Cannot transfer from/to the zero/contract address"
+            "Transfer Error: Cannot transfer from/to the zero/contract address."
         );
 
         //Check to ensure that transfer amount is greater than or equal to 10,000
         require(
             amount >= 10000,
-            "Transfer Error: Cannot transfer amount smaller than 10,000 units"
+            "Transfer Error: Cannot transfer amount smaller than 10,000 units."
         );
 
         //Initialize fee variable and set to 0%
@@ -458,27 +437,17 @@ contract FI25 is Pausable, IERC20 {
         emit Transfer(msg.sender, recipient, amount - fee);
     }
 
-    function transfer(address recipient, uint256 amount)
-        public
-        override
-        whenNotPaused
-        returns (bool)
-    {
+    function transfer(address recipient, uint256 amount) public override whenNotPaused returns (bool) {
         _transfer(msg.sender, recipient, amount);
         return true;
     }
 
-    function transferFrom(address sender, address recipient, uint256 amount)
-	public 
-	override 
-	whenNotPaused 
-	returns (bool) 
-    {
+    function transferFrom(address sender, address recipient, uint256 amount) public override whenNotPaused returns (bool) {
         uint256 currentAllowance = _allowances[sender][msg.sender];
 
         require(
             currentAllowance >= amount,
-            "ERC20: transfer amount exceeds allowance"
+            "Transfer From Error: Transfer amount exceeds allowance."
         );
 
         _transfer(sender, recipient, amount);
@@ -493,10 +462,8 @@ contract FI25 is Pausable, IERC20 {
         //Check to make sure spender is not the zero address
         //Check to make sure spender is not contract address
         require(
-            (owner_ != address(0)) &&
-                (spender != address(0)) &&
-                (spender != address(this)),
-            "ERC20: approve from/to the zero address or to contract's address"
+            (owner_ != address(0)) && (spender != address(0)) && (spender != address(this)),
+            "Approve Error: Cannot approve from/to the zero address or to contract's address."
         );
 
         //Set allowance
@@ -506,33 +473,17 @@ contract FI25 is Pausable, IERC20 {
         emit Approval(owner_, spender, amount);
     }
 
-    function approve(address spender, uint256 amount)
-        public
-        override
-        whenNotPaused
-        returns (bool)
-    {
+    function approve(address spender, uint256 amount) public override whenNotPaused returns (bool) {
         _approve(msg.sender, spender, amount);
 
         return true;
     }
 
-    function allowance(address owner_, address spender)
-        public
-        view
-        override
-        whenNotPaused
-        returns (uint256)
-    {
+    function allowance(address owner_, address spender) public view override whenNotPaused returns (uint256) {
         return _allowances[owner_][spender];
     }
 
-    function increaseAllowance(address spender, uint256 addedValue)
-        public
-        override
-        whenNotPaused
-        returns (bool)
-    {
+    function increaseAllowance(address spender, uint256 addedValue) public override whenNotPaused returns (bool) {
         uint256 currentAllowance = _allowances[msg.sender][spender];
 
         _approve(msg.sender, spender, currentAllowance + addedValue);
@@ -540,18 +491,13 @@ contract FI25 is Pausable, IERC20 {
         return true;
     }
 
-    function decreaseAllowance(address spender, uint256 subtractedValue)
-        public
-        override
-        whenNotPaused
-        returns (bool)
-    {
+    function decreaseAllowance(address spender, uint256 subtractedValue) public override whenNotPaused returns (bool) {
         uint256 currentAllowance = _allowances[msg.sender][spender];
 
         //Check to make sure that decreased amount is not lower than current allowance
         require(
             currentAllowance >= subtractedValue,
-            "Decrease Allowance Error: Decreased allowance would be below zero"
+            "Decrease Allowance Error: Decreased allowance would be below zero."
         );
 
         _approve(msg.sender, spender, currentAllowance - subtractedValue);
@@ -559,41 +505,33 @@ contract FI25 is Pausable, IERC20 {
         return true;
     }
 
-    function excludeAddrFromTxFee(address account)
-        public
-        whenNotPaused
-        onlyOwner
-    {
+    function excludeAddrFromTxFee(address account) public whenNotPaused onlyOwner {
         //Check to make sure account isn't already excluded from fee
         require(
             !_isExcludedFromFee[account],
-            "Error: Address is already excluded from fee"
+            "Tx Fee Error: Address is already excluded from fee."
         );
 
         _isExcludedFromFee[account] = true;
     }
 
-    function includeAddrInTxFee(address account)
-        public
-        whenNotPaused
-        onlyOwner
-    {
+    function includeAddrInTxFee(address account) public whenNotPaused onlyOwner {
         //Check to make sure that account isn't already included in fee
         require(
             _isExcludedFromFee[account],
-            "Error: Address is already included in fee"
+            "Tx Fee Error: Address is already included in fee."
         );
 
         //Check to make sure that account isn't an owners account
         require(
             !_owners[account],
-            "Error: Cannot charge tx fee to contract owner"
+            "Tx Fee Error: Cannot charge tx fee to contract owner."
         );
 
 	//Check to make sure that account isn't the commission holder account
 	require(
 	    _commissionHolder != account,
-	    "Error: Cannot charge tx fee to commission holder"
+	    "Tx Fee Error: Cannot charge tx fee to commission holder."
 	);
 
         _isExcludedFromFee[account] = false;
@@ -602,21 +540,20 @@ contract FI25 is Pausable, IERC20 {
     function setAccountAsCommissionHolder(address account) public onlyOwner {
         //Check multisignature eligibility
         require(
-            requireMultisigVote("SET_COMMISSION_HOLDER"),
-            "Multisig Error: Multisignature requirements have not been met"
+            multisigVoteApproved("SET_COMMISSION_HOLDER"),
+            "Multisig Error: Multisignature requirements have not been met."
         );
 
         //Check that commission holder account is not the zero address
         require(
             account != address(0),
-            "Owned Error: Commission holder cannot be the zero address"
+            "Commission Error: Commission holder cannot be the zero address."
         );
-
 
         //Check that commission holder isn't already set
         require(
             _commissionHolder != account,
-            "Owned Error: Account is already the commission holder"
+            "Commission Error: Account is already the commission holder."
         );
 
         //Change commission holder
@@ -629,27 +566,27 @@ contract FI25 is Pausable, IERC20 {
     function transferOwnership(address newOwner) public onlyOwner {
         //Check for multisig vote eligibility
         require(
-            requireMultisigVote("TRANSFER_OWNERSHIP"),
-            "Multisig Error: Multisignature requirements are not met"
+            multisigVoteApproved("TRANSFER_OWNERSHIP"),
+            "Multisig Error: Multisignature requirements have not been met."
         );
 
         //Check to make sure that new owner is not the caller
         require(
             newOwner != msg.sender,
-            "Owner Transfer Error: New owner is the same as caller"
+            "Owner Transfer Error: New owner is the same as caller."
         );
 
         //Check to make sure that new owner is not already an owner
         require(
             !_owners[newOwner],
-            "Owner Transfer Error: New owner is already owner"
+            "Owner Transfer Error: New owner is already an owner."
         );
 
         //Check to make sure that new owner's address is not zero
         //Check to make sure that new owner's address is not the contract address
         require(
             (newOwner != address(0)) && (newOwner != address(this)),
-            "Owner Transfer Error: New owner's address cannot be zero or contract's address"
+            "Owner Transfer Error: New owner's address cannot be zero or contract's address."
         );
 
         //Previous contract owner is removed
